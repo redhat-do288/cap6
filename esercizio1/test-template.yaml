@@ -1,0 +1,413 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  creationTimestamp: null
+  name: test
+objects:
+- apiVersion: v1
+  data:
+    cakephp-secret-token: RnRnckUwS0VaUGlhVDJWbTNFNFBFWHg3clFSdUR5UzBnZmpWdHBrYnNZOHF3NUN3Z2c=
+    cakephp-security-salt: WVZ4T29seFZQbGNUaUhxNnRqSlcySnU3Z2hrZlAwNE9KUDFOcHhOaQ==
+    database-password: R0o3Vklsd3BXSVlkVTR2SQ==
+    database-user: Y2FrZXBocA==
+  kind: Secret
+  metadata:
+    creationTimestamp: null
+    labels:
+      app: cakephp-mysql-persistent
+      template: cakephp-mysql-persistent
+    name: cakephp-mysql-persistent
+  type: Opaque
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    annotations:
+      description: Keeps track of changes in the application image
+    creationTimestamp: null
+    generation: 1
+    labels:
+      app: cakephp-mysql-persistent
+      template: cakephp-mysql-persistent
+    name: cakephp-mysql-persistent
+  spec:
+    lookupPolicy:
+      local: false
+    tags:
+    - annotations: null
+      from:
+        kind: DockerImage
+        name: 172.30.1.1:5000/myproject/cakephp-mysql-persistent:latest
+      generation: null
+      importPolicy: {}
+      name: latest
+      referencePolicy:
+        type: ""
+  status:
+    dockerImageRepository: ""
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    annotations:
+      description: Defines how to build the application
+      template.alpha.openshift.io/wait-for-ready: "true"
+    creationTimestamp: null
+    labels:
+      app: cakephp-mysql-persistent
+      template: cakephp-mysql-persistent
+    name: cakephp-mysql-persistent
+  spec:
+    failedBuildsHistoryLimit: 5
+    nodeSelector: null
+    output:
+      to:
+        kind: ImageStreamTag
+        name: cakephp-mysql-persistent:latest
+    postCommit:
+      script: ./vendor/bin/phpunit
+    resources: {}
+    runPolicy: Serial
+    source:
+      git:
+        uri: https://github.com/sclorg/cakephp-ex.git
+      type: Git
+    strategy:
+      sourceStrategy:
+        env:
+        - name: COMPOSER_MIRROR
+        from:
+          kind: ImageStreamTag
+          name: php:7.1
+          namespace: openshift
+      type: Source
+    successfulBuildsHistoryLimit: 5
+    triggers:
+    - imageChange: {}
+      type: ImageChange
+    - type: ConfigChange
+    - github:
+        secret: WuxVK426pJGPITVwtn0xojibatiqDEgnaPnhkCgW
+      type: GitHub
+  status:
+    lastVersion: 0
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      description: Defines how to deploy the application server
+      template.alpha.openshift.io/wait-for-ready: "true"
+    creationTimestamp: null
+    generation: 2
+    labels:
+      app: cakephp-mysql-persistent
+      template: cakephp-mysql-persistent
+    name: cakephp-mysql-persistent
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      name: cakephp-mysql-persistent
+    strategy:
+      activeDeadlineSeconds: 21600
+      recreateParams:
+        pre:
+          execNewPod:
+            command:
+            - ./migrate-database.sh
+            containerName: cakephp-mysql-persistent
+          failurePolicy: Retry
+        timeoutSeconds: 600
+      resources: {}
+      type: Recreate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: cakephp-mysql-persistent
+        name: cakephp-mysql-persistent
+      spec:
+        containers:
+        - env:
+          - name: DATABASE_SERVICE_NAME
+            value: mysql
+          - name: DATABASE_ENGINE
+            value: mysql
+          - name: DATABASE_NAME
+            value: default
+          - name: DATABASE_USER
+            valueFrom:
+              secretKeyRef:
+                key: database-user
+                name: cakephp-mysql-persistent
+          - name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: database-password
+                name: cakephp-mysql-persistent
+          - name: CAKEPHP_SECRET_TOKEN
+            valueFrom:
+              secretKeyRef:
+                key: cakephp-secret-token
+                name: cakephp-mysql-persistent
+          - name: CAKEPHP_SECURITY_SALT
+            valueFrom:
+              secretKeyRef:
+                key: cakephp-security-salt
+                name: cakephp-mysql-persistent
+          - name: OPCACHE_REVALIDATE_FREQ
+            value: "2"
+          image: 172.30.1.1:5000/myproject/cakephp-mysql-persistent@sha256:e99271772a8e13317ecb8a35e1dde243cf1ef8ac91285e3b89e3659b864db6da
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health.php
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            successThreshold: 1
+            timeoutSeconds: 3
+          name: cakephp-mysql-persistent
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health.php
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 3
+            periodSeconds: 60
+            successThreshold: 1
+            timeoutSeconds: 3
+          resources:
+            limits:
+              memory: 512Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    test: false
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - cakephp-mysql-persistent
+        from:
+          kind: ImageStreamTag
+          name: cakephp-mysql-persistent:latest
+          namespace: myproject
+        lastTriggeredImage: 172.30.1.1:5000/myproject/cakephp-mysql-persistent@sha256:e99271772a8e13317ecb8a35e1dde243cf1ef8ac91285e3b89e3659b864db6da
+      type: ImageChange
+    - type: ConfigChange
+  status:
+    availableReplicas: 0
+    latestVersion: 0
+    observedGeneration: 0
+    replicas: 0
+    unavailableReplicas: 0
+    updatedReplicas: 0
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      description: Defines how to deploy the database
+      template.alpha.openshift.io/wait-for-ready: "true"
+    creationTimestamp: null
+    generation: 2
+    labels:
+      app: cakephp-mysql-persistent
+      template: cakephp-mysql-persistent
+    name: mysql
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      name: mysql
+    strategy:
+      activeDeadlineSeconds: 21600
+      recreateParams:
+        timeoutSeconds: 600
+      resources: {}
+      type: Recreate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: mysql
+        name: mysql
+      spec:
+        containers:
+        - env:
+          - name: MYSQL_USER
+            valueFrom:
+              secretKeyRef:
+                key: database-user
+                name: cakephp-mysql-persistent
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: database-password
+                name: cakephp-mysql-persistent
+          - name: MYSQL_DATABASE
+            value: default
+          image: 172.30.1.1:5000/openshift/mysql@sha256:e08ee4d43b7356607685b69bde6335e27cf20c020f345b6c6c59400183882764
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3306
+            timeoutSeconds: 1
+          name: mysql
+          ports:
+          - containerPort: 3306
+            protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -i
+              - -c
+              - MYSQL_PWD='GJ7VIlwpWIYdU4vI' mysql -h 127.0.0.1 -u cakephp -D default
+                -e 'SELECT 1'
+            failureThreshold: 3
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/lib/mysql/data
+            name: mysql-data
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: mysql-data
+          persistentVolumeClaim:
+            claimName: mysql
+    test: false
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - mysql
+        from:
+          kind: ImageStreamTag
+          name: mysql:5.7
+          namespace: openshift
+        lastTriggeredImage: 172.30.1.1:5000/openshift/mysql@sha256:e08ee4d43b7356607685b69bde6335e27cf20c020f345b6c6c59400183882764
+      type: ImageChange
+    - type: ConfigChange
+  status:
+    availableReplicas: 0
+    latestVersion: 0
+    observedGeneration: 0
+    replicas: 0
+    unavailableReplicas: 0
+    updatedReplicas: 0
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      description: Exposes and load balances the application pods
+      service.alpha.openshift.io/dependencies: '[{"name": "mysql", "kind": "Service"}]'
+    creationTimestamp: null
+    labels:
+      app: cakephp-mysql-persistent
+      template: cakephp-mysql-persistent
+    name: cakephp-mysql-persistent
+  spec:
+    ports:
+    - name: web
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      name: cakephp-mysql-persistent
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      description: Exposes the database server
+    creationTimestamp: null
+    labels:
+      app: cakephp-mysql-persistent
+      template: cakephp-mysql-persistent
+    name: mysql
+  spec:
+    ports:
+    - name: mysql
+      port: 3306
+      protocol: TCP
+      targetPort: 3306
+    selector:
+      name: mysql
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    annotations:
+      openshift.io/host.generated: "true"
+    creationTimestamp: null
+    labels:
+      app: cakephp-mysql-persistent
+      template: cakephp-mysql-persistent
+    name: cakephp-mysql-persistent
+  spec:
+    host: cakephp-mysql-persistent-myproject.127.0.0.1.nip.io
+    to:
+      kind: Service
+      name: cakephp-mysql-persistent
+      weight: 100
+    wildcardPolicy: None
+  status:
+    ingress:
+    - conditions:
+      - lastTransitionTime: 2019-11-04T20:16:33Z
+        status: "True"
+        type: Admitted
+      host: cakephp-mysql-persistent-myproject.127.0.0.1.nip.io
+      routerName: router
+      wildcardPolicy: None
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    annotations:
+      pv.kubernetes.io/bind-completed: "yes"
+      pv.kubernetes.io/bound-by-controller: "yes"
+    creationTimestamp: null
+    finalizers:
+    - kubernetes.io/pvc-protection
+    labels:
+      app: cakephp-mysql-persistent
+      template: cakephp-mysql-persistent
+    name: mysql
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1Gi
+    volumeName: pv0064
+  status: {}
