@@ -1,0 +1,26 @@
+SETUP
+oc new-project todoapp-dev
+oc new-app --name tododb -i mysql -e MYSQL_USER=todoapp -e MYSQL_PASSWORD=redhat -e MYSQL_DATABASE=tododb
+oc new-app --name todoapp --build-env npm_config_registry=https://registry.npmjs.org/ -e DATABASE_USER=todoapp -e DATABASE_PASSWORD=redhat -e DATABASE_NAME=tododb -e DATABASE_SVC=tododb -e DATABASE_INIT=true https://github.com/redhat-do288/todo-single.git
+oc expose svc/todoapp --hostname todoapp.hostname
+
+
+TASK*
+creare template dalle app deployate
+	aggiungere parametri
+		HOSTNAME (required)
+		NPM_PROXY (required)
+		SECRET (random default value)
+		PASSWORD (random default value)
+		CLEAN_DATABASE (required, default value true)
+	nome template todo-template
+creare un nuovo progetto (review-template)
+deployare template 
+	nome app todo
+	PASSWORD
+	HOSTNAME todo
+	NPM_PROXY https://registry.npmjs.org/
+		
+curl curl hostname/todo/api/items-count
+
+*non contiene la parte relativa al pvc
