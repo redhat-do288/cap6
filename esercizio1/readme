@@ -1,1 +1,20 @@
-Eseguire da console Cake PHP+MySql poi esporta come template
+SETUP
+oc new-project quotes-dev
+oc new-app --name quotesdb -i mysql -e MYSQL_USER=quoteapp -e MYSQL_PASSWORD=redhat -e MYSQL_DATABASE=quotesdb
+oc new-app --name quotesapi -e DATABASE_USER=quoteapp -e DATABASE_PASSWORD=redhat -e DATABASE_NAME=quotesdb -e DATABASE_SERVICE_NAME=quotesdb https://github.com/redhat-do288/quotes.git
+oc expose svc/quotesapi --hostname quotes.hostname
+
+
+TASK*
+creare template dalle app deployate
+	aggiungere parametri
+		HOSTNAME (required)
+		PASSWORD (regExpression [a-zA-z0-9]{16})
+		SECRET ([a-zA-z0-9]{40})
+	nome template quotes
+aggiungere il template ad un nuovo progetto (myquotes)
+deployare template
+creare tabella quote nel pod del db ed inserire dati nella tabella quote (msg,id)
+curl myquotes.hostname
+
+*non contiene la parte relativa al pvc
